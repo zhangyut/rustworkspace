@@ -1,0 +1,9 @@
+[package]
+name = "dnsecho"
+version = "0.1.0"
+authors = ["zhanglei <zhanglei@zdns.cn>"]
+edition = "2018"
+
+[dependencies]
+tokio = "0.1"
+futures = "0.1"
