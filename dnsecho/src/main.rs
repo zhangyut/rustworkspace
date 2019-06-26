@@ -20,6 +20,8 @@ use std::{env, io};
 use tokio;
 use tokio::net::UdpSocket;
 use tokio::prelude::*;
+//extern crate r53;
+use r53::{Name, Message, RRType};
 
 enum ServerStatus {
     WaitQuery,
@@ -48,7 +50,6 @@ impl Future for Server {
             // First we check to see if there's a message we need to echo back.
             // If so then we try to send it back to the original source, waiting
             // until it's writable and we're able to do so.
-            println!("in loop");
             match self.status {
                 ServerStatus::WaitQuery => {
                     println!("1 wait query");
@@ -62,14 +63,15 @@ impl Future for Server {
                     let dns_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8,8,8,8)),53);
                     try_ready!(self.query_socket.poll_send_to(&self.query_buf[..size], &dns_addr));
                     self.status = ServerStatus::SendQuery;
+                    println!("3 send query");
                 },
                 ServerStatus::SendQuery => {
-                    println!("3 send query");
                     self.to_query = Some(try_ready!(self.query_socket.poll_recv_from(&mut self.response_buf)));
+                    println!("4 receive response");
                     self.status = ServerStatus::RecvResponse;
                 },
                 ServerStatus::RecvResponse => {
-                    println!("4 recv response");
+                    println!("5 send response");
                     self.status = ServerStatus::WaitQuery;
                     let (size, _peer) = self.to_query.unwrap();
                     try_ready!(self.socket.poll_send_to(&self.response_buf[..size], &self.to_response.unwrap()));
@@ -109,6 +111,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // that can be spawned.
     //
     // `tokio::run` spawns the task on the Tokio runtime and starts running.
+    let name = Name::new("www.baidu.com.", true).unwrap();
+    let qtype = "a";
+    let qtype = RRType::from_string(qtype.as_ref()).expect("unknown qtype");
+
+    let query = Message::with_query(name, qtype);
+    println!("{:?}",query);
     tokio::run(server.map_err(|e| println!("server error = {:?}", e)));
     Ok(())
 }

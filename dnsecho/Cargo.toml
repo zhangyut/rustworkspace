@@ -7,3 +7,7 @@ edition = "2018"
 [dependencies]
 tokio = "0.1"
 futures = "0.1"
+error-chain = { version = "0.12", default-features = false }
+clap = { version = "2.32", default-features = false}
+r53 = {path = "../r53"}
+
