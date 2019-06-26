@@ -14,15 +14,29 @@
 
 use futures::try_ready;
 use std::net::SocketAddr;
+use std::net::IpAddr;
+use std::net::Ipv4Addr;
 use std::{env, io};
 use tokio;
 use tokio::net::UdpSocket;
 use tokio::prelude::*;
 
+enum ServerStatus {
+    WaitQuery,
+    RecvQuery,
+    SendQuery,
+    RecvResponse,
+}
+
 struct Server {
     socket: UdpSocket,
-    buf: Vec<u8>,
+    query_socket: UdpSocket,
+    query_buf: Vec<u8>,
+    response_buf: Vec<u8>,
     to_send: Option<(usize, SocketAddr)>,
+    to_query: Option<(usize, SocketAddr)>,
+    to_response: Option<SocketAddr>,
+    status: ServerStatus,
 }
 
 impl Future for Server {
@@ -30,23 +44,40 @@ impl Future for Server {
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<(), io::Error> {
-        println!("before loop");
         loop {
-            println!("in loop");
             // First we check to see if there's a message we need to echo back.
             // If so then we try to send it back to the original source, waiting
             // until it's writable and we're able to do so.
-            println!("before send");
-            if let Some((size, peer)) = self.to_send {
-                let amt = try_ready!(self.socket.poll_send_to(&self.buf[..size], &peer));
-                println!("Echoed {}/{} bytes to {}", amt, size, peer);
-                self.to_send = None;
-            }
-
-            // If we're here then `to_send` is `None`, so we take a look for the
-            // next message we're going to echo back.
-            println!("before read");
-            self.to_send = Some(try_ready!(self.socket.poll_recv_from(&mut self.buf)));
+            println!("in loop");
+            match self.status {
+                ServerStatus::WaitQuery => {
+                    println!("1 wait query");
+                    self.to_send = Some(try_ready!(self.socket.poll_recv_from(&mut self.query_buf)));
+                    self.status = ServerStatus::RecvQuery;
+                },
+                ServerStatus::RecvQuery => {
+                    println!("2 recv query");
+                    let (size, peer) = self.to_send.unwrap();
+                    self.to_response = Some(peer);
+                    let dns_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8,8,8,8)),53);
+                    try_ready!(self.query_socket.poll_send_to(&self.query_buf[..size], &dns_addr));
+                    self.status = ServerStatus::SendQuery;
+                },
+                ServerStatus::SendQuery => {
+                    println!("3 send query");
+                    self.to_query = Some(try_ready!(self.query_socket.poll_recv_from(&mut self.response_buf)));
+                    self.status = ServerStatus::RecvResponse;
+                },
+                ServerStatus::RecvResponse => {
+                    println!("4 recv response");
+                    self.status = ServerStatus::WaitQuery;
+                    let (size, _peer) = self.to_query.unwrap();
+                    try_ready!(self.socket.poll_send_to(&self.response_buf[..size], &self.to_response.unwrap()));
+                    self.to_query = None;
+                    self.to_response = None;
+                    self.to_send = None;
+                },
+            };
         }
     }
 }
@@ -55,13 +86,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
     let addr = addr.parse::<SocketAddr>()?;
 
+    let local_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0,0,0,0)),0);
+    let query_socket = UdpSocket::bind(&local_addr)?;
+
     let socket = UdpSocket::bind(&addr)?;
     println!("Listening on: {}", socket.local_addr()?);
 
     let server = Server {
         socket: socket,
-        buf: vec![0; 1024],
+        query_socket: query_socket,
+        query_buf: vec![0; 1024],
+        response_buf: vec![0; 1024],
         to_send: None,
+        to_query: None,
+        to_response: None,
+        status:ServerStatus::WaitQuery,
     };
 
     // This starts the server task.
