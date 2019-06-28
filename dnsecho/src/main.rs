@@ -113,6 +113,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // that can be spawned.
     //
     // `tokio::run` spawns the task on the Tokio runtime and starts running.
+    //12 10 53 www.baidu.com.
     let raw = from_hex("000c000a00350377777705626169647503636f6d00").unwrap();
     let mut buf = InputBuffer::new(raw.as_slice());
     let srv = SRV::from_wire(&mut buf, raw.len() as u16).unwrap();
