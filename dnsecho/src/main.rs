@@ -118,6 +118,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut buf = InputBuffer::new(raw.as_slice());
     let srv = SRV::from_wire(&mut buf, raw.len() as u16).unwrap();
     println!("{:?}",srv);
+    println!("{:?}",srv);
     tokio::run(server.map_err(|e| println!("server error = {:?}", e)));
     Ok(())
 }
