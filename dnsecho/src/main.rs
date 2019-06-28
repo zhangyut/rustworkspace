@@ -21,7 +21,9 @@ use tokio;
 use tokio::net::UdpSocket;
 use tokio::prelude::*;
 //extern crate r53;
-use r53::{Name, Message, RRType};
+use r53::{SRV};
+use r53::util::InputBuffer;
+use r53::util::hex::from_hex;
 
 enum ServerStatus {
     WaitQuery,
@@ -111,12 +113,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // that can be spawned.
     //
     // `tokio::run` spawns the task on the Tokio runtime and starts running.
-    let name = Name::new("www.baidu.com.", true).unwrap();
-    let qtype = "a";
-    let qtype = RRType::from_string(qtype.as_ref()).expect("unknown qtype");
-
-    let query = Message::with_query(name, qtype);
-    println!("{:?}",query);
+    let raw = from_hex("000c000a00350377777705626169647503636f6d00").unwrap();
+    let mut buf = InputBuffer::new(raw.as_slice());
+    let srv = SRV::from_wire(&mut buf, raw.len() as u16).unwrap();
+    println!("{:?}",srv);
     tokio::run(server.map_err(|e| println!("server error = {:?}", e)));
     Ok(())
 }
