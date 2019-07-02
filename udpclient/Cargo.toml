@@ -1,0 +1,7 @@
+[package]
+name = "udpclient"
+version = "0.1.0"
+authors = ["zhanglei <zhanglei@zdns.cn>"]
+edition = "2018"
+
+[dependencies]
